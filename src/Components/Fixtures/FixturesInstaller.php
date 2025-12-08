@@ -9,12 +9,14 @@ use Kiener\MolliePayments\Components\Fixtures\Handler\Product\FailureProductsFix
 use Kiener\MolliePayments\Components\Fixtures\Handler\Product\RoundingProductsFixture;
 use Kiener\MolliePayments\Components\Fixtures\Handler\Product\SubscriptionProductsFixture;
 use Kiener\MolliePayments\Components\Fixtures\Handler\Product\VoucherProductsFixture;
-use Kiener\MolliePayments\Components\Fixtures\Handler\SalesChannel\SalesChannelFixture;
+use Kiener\MolliePayments\Components\Fixtures\Handler\PaymentMethod\PaymentMethodsFixture;
+use Kiener\MolliePayments\Components\Fixtures\Handler\Shipment\ShipmentFixture;
 
 class FixturesInstaller
 {
     private CategoryFixture $categoryFixture;
-    private SalesChannelFixture $salesChannelFixture;
+    private PaymentMethodsFixture $salesChannelFixture;
+    private ShipmentFixture $shipmentFixture;
     private SubscriptionProductsFixture $subscriptionFixture;
     private VoucherProductsFixture $voucherFixture;
     private CheapProductsFixture $cheapProducts;
@@ -22,16 +24,19 @@ class FixturesInstaller
     private RoundingProductsFixture $roundingProducts;
 
     public function __construct(
-        CategoryFixture $categoryFixture,
-        SalesChannelFixture $salesChannelFixture,
+        CategoryFixture             $categoryFixture,
+        PaymentMethodsFixture       $salesChannelFixture,
+        ShipmentFixture             $shipmentFixture,
         SubscriptionProductsFixture $subscriptionFixture,
-        VoucherProductsFixture $voucherFixture,
-        CheapProductsFixture $cheapProducts,
-        FailureProductsFixture $failureProducts,
-        RoundingProductsFixture $roundingProducts
-    ) {
+        VoucherProductsFixture      $voucherFixture,
+        CheapProductsFixture        $cheapProducts,
+        FailureProductsFixture      $failureProducts,
+        RoundingProductsFixture     $roundingProducts
+    )
+    {
         $this->categoryFixture = $categoryFixture;
         $this->salesChannelFixture = $salesChannelFixture;
+        $this->shipmentFixture = $shipmentFixture;
         $this->subscriptionFixture = $subscriptionFixture;
         $this->voucherFixture = $voucherFixture;
         $this->cheapProducts = $cheapProducts;
@@ -59,6 +64,18 @@ class FixturesInstaller
         $this->installDemoData();
     }
 
+    public function uninstall(): void
+    {
+        $this->shipmentFixture->uninstall();
+        $this->categoryFixture->uninstall();
+
+        $this->cheapProducts->uninstall();
+        $this->failureProducts->uninstall();
+        $this->roundingProducts->uninstall();
+        $this->voucherFixture->uninstall();
+        $this->subscriptionFixture->uninstall();
+    }
+
     private function installSetup(): void
     {
         $this->salesChannelFixture->install();
@@ -69,6 +86,9 @@ class FixturesInstaller
         // ------------------------------------------
         // categories
         $this->categoryFixture->install();
+        // ------------------------------------------
+        // shipment
+        $this->shipmentFixture->install();
         // ------------------------------------------
         // products
         $this->subscriptionFixture->install();

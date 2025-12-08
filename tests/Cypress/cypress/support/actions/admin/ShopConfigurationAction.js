@@ -1,8 +1,4 @@
 import AdminAPIClient from "Services/shopware/AdminAPIClient";
-import Shopware from "Services/shopware/Shopware"
-import ShopConfiguration from "../../models/ShopConfiguration";
-
-const shopware = new Shopware();
 
 export default class ShopConfigurationAction {
 
@@ -16,38 +12,24 @@ export default class ShopConfigurationAction {
 
     /**
      *
-     * @param {boolean} mollieFailureMode
-     * @param {boolean} creditCardComponents
-     * @param {boolean} applePayDirect
-     * @param {ShopConfiguration|null} [shopConfiguration=null] - Optional shop configuration object
+     * @param {ShopConfiguration} shopConfig
+     * @param {PluginConfiguration} pluginConfig
      */
-    setupShop(mollieFailureMode, creditCardComponents, applePayDirect, shopConfiguration = null) {
+    configureEnvironment(shopConfig, pluginConfig) {
 
-        this.setupPlugin(mollieFailureMode, creditCardComponents, applePayDirect, false, []);
+        this._configureShop(shopConfig);
 
-        this._activatePaymentMethods();
-
-        if (shopConfiguration === null) {
-            shopConfiguration = new ShopConfiguration();
-        }
-
-        this._configureShop(shopConfiguration);
-
-        this.prepareShippingMethods();
+        this.configurePlugin(pluginConfig);
 
         this._clearCache();
     }
 
-
     /**
      *
-     * @param mollieFailureMode
-     * @param creditCardComponents
-     * @param applePayDirect
-     * @param subscriptionIndicator
-     * @param paypalExpressRestrictions
+     * @param {PluginConfiguration} pluginConfig
+     * @returns {*}
      */
-    setupPlugin(mollieFailureMode, creditCardComponents, applePayDirect, subscriptionIndicator, paypalExpressRestrictions) {
+    configurePlugin(pluginConfig) {
 
         // assign all payment methods to
         // all available sales channels
@@ -59,7 +41,7 @@ export default class ShopConfigurationAction {
 
             let systemConfigData = {};
 
-            const mollieConfig = this._getMollieConfiguration(mollieFailureMode, creditCardComponents, applePayDirect, subscriptionIndicator, paypalExpressRestrictions);
+            const mollieConfig = this._buildMollieConfiguration(pluginConfig);
 
             // assign "all sales channels" to the configuration
             systemConfigData[null] = mollieConfig;
@@ -74,112 +56,21 @@ export default class ShopConfigurationAction {
             });
 
         });
-
-
     }
 
     /**
      *
-     * @param voucherValue
-     * @param subscriptionEnabled
-     * @param subscriptionInterval
-     * @param subscriptionIntervalUnit
-     */
-    updateProducts(voucherValue, subscriptionEnabled, subscriptionInterval, subscriptionIntervalUnit) {
-
-        cy.log('Configuring Shopware Products');
-
-        if (voucherValue === 'eco') {
-            voucherValue = '1';
-        } else if (voucherValue === 'meal') {
-            voucherValue = '2';
-        } else if (voucherValue === 'gift') {
-            voucherValue = '3';
-        } else {
-            voucherValue = '0';
-        }
-
-        if (subscriptionInterval === '') {
-            subscriptionInterval = null;
-        }
-
-        let customFields = null;
-
-        if (voucherValue !== '') {
-            customFields = {
-                'mollie_payments_product_voucher_type': voucherValue,
-                'mollie_payments_product_subscription_enabled': subscriptionEnabled,
-                'mollie_payments_product_subscription_interval': subscriptionInterval,
-                'mollie_payments_product_subscription_interval_unit': subscriptionIntervalUnit,
-            }
-        }
-
-        cy.intercept({url: '/api/_action/sync'}).as("updateProducts");
-
-        this.apiClient.get('/product').then(products => {
-
-            if (products === undefined || products === null) {
-                console.error('Attention, No products found trough Shopware API');
-                // send an empty request so that our cy.wait has something, otherwise the full timeout is consumed
-                this.apiClient.bulkUpdate('product', []);
-                return;
-            }
-
-            // lets wait a few seconds
-            // otherwise the call is already sent before we
-            // even reach our cy.wait for update products.
-            const waitStartMS = 10 * 1000;
-            setTimeout(() => {
-
-                const maxChunkSize = 80;
-                let data = [];
-
-                for (const product of products) {
-                    const row = {
-                        "id": product.id,
-                        "shippingFree": false,
-                        "customFields": customFields,
-                    };
-                    data.push(row);
-
-                    if (data.length >= maxChunkSize) {
-                        this.apiClient.bulkUpdate('product', data);
-                        data = [];
-                    }
-                }
-
-                if (data.length >= 0) {
-                    this.apiClient.bulkUpdate('product', data);
-                }
-            }, waitStartMS);
-
-        });
-
-        cy.wait("@updateProducts", {requestTimeout: 100000});
-
-        cy.log('Products done');
-
-        this._clearCache();
-    }
-
-    /**
-     *
-     * @param channelId
-     * @param mollieFailureMode
-     * @param creditCardComponents
-     * @param applePayDirect
-     * @param subscriptionIndicator
-     * @param paypalExpressRestrictions
+     * @param {PluginConfiguration} pluginConfig
      * @private
      */
-    _getMollieConfiguration(mollieFailureMode, creditCardComponents, applePayDirect, subscriptionIndicator, paypalExpressRestrictions) {
+    _buildMollieConfiguration(pluginConfig) {
         return {
             "MolliePayments.config.testMode": true,
             "MolliePayments.config.debugMode": true,
             // ------------------------------------------------------------------
-            "MolliePayments.config.shopwareFailedPayment": !mollieFailureMode,
-            "MolliePayments.config.enableCreditCardComponents": creditCardComponents,
-            "MolliePayments.config.enableApplePayDirect": applePayDirect,
+            "MolliePayments.config.shopwareFailedPayment": !pluginConfig.getMollieFailureMode(),
+            "MolliePayments.config.enableCreditCardComponents": pluginConfig.getCreditCardComponents(),
+            "MolliePayments.config.enableApplePayDirect": pluginConfig.getApplePayDirectEnabled(),
             "MolliePayments.config.oneClickPaymentsEnabled": false,
             "MolliePayments.config.paymentMethodBankTransferDueDateDays": 2,
             "MolliePayments.config.orderLifetimeDays": 4,
@@ -191,136 +82,13 @@ export default class ShopConfigurationAction {
             "MolliePayments.config.refundManagerEnabled": true,
             // ------------------------------------------------------------------
             "MolliePayments.config.subscriptionsEnabled": true,
-            "MolliePayments.config.subscriptionsShowIndicator": subscriptionIndicator,
+            "MolliePayments.config.subscriptionsShowIndicator": pluginConfig.getSubscriptionIndicator(),
             "MolliePayments.config.subscriptionsAllowAddressEditing": true,
             "MolliePayments.config.subscriptionsAllowPauseResume": true,
             "MolliePayments.config.subscriptionsAllowSkip": true,
             // ---------------------------------------------------------------
-            "MolliePayments.config.paypalExpressRestrictions": paypalExpressRestrictions
+            "MolliePayments.config.paypalExpressRestrictions": pluginConfig.getPaypalExpressRestrictions()
         };
-    }
-
-    /**
-     *
-     * @private
-     */
-    _activatePaymentMethods() {
-
-        const entity = 'payment_method';
-        const interceptAlias = 'updatePaymentMethods';
-
-        this._cypressInterceptBulkUpdate(entity, interceptAlias);
-
-        this.apiClient.get('/payment-method').then(payments => {
-
-            if (payments === undefined || payments === null) {
-                console.log('Attention, No payments through trough Shopware API');
-                return;
-            }
-
-            const data = [];
-
-            for (const element of payments) {
-
-                let shouldBeActive = false;
-
-                // starting from Shopware 6.4.3, there is an indicator
-                // if we have the payment method of a mollie plugin.
-                // to avoid other payment methods (another paypal), etc., we try to
-                // only enable mollie payment methods as good as possible
-                if (shopware.isVersionGreaterEqual("6.4.3")) {
-                    if (element.attributes.distinguishableName.includes('Mollie')) {
-                        shouldBeActive = true;
-                    }
-                } else {
-                    shouldBeActive = true;
-                }
-
-                const row = {
-                    "id": element.id,
-                    "active": shouldBeActive,
-                };
-
-                data.push(row);
-            }
-
-            if (data.length >= 0) {
-                this.apiClient.bulkUpdate(entity, data);
-            }
-        });
-
-        cy.wait('@' + interceptAlias, {requestTimeout: 50000});
-    }
-
-    /**
-     * Make sure no availability rules are set
-     * that could block our shipping method from being used.
-     * Also add some shipping costs for better tests.
-     * @private
-     */
-    prepareShippingMethods() {
-
-        this.apiClient.get('/rule').then(rules => {
-
-            if (rules === undefined || rules === null) {
-                rules = [];
-            }
-
-            rules.forEach(rule => {
-
-                // get the all customers rule
-                // so we allow our shipping methods to be used by everybody
-                if (rule.attributes.name === 'All customers') {
-
-                    this.apiClient.get('/shipping-method').then(shippingMethods => {
-
-                        if (shippingMethods === undefined || shippingMethods === null) {
-                            return;
-                            throw new Error('Attention, No shippingMethods trough Shopware API');
-                        }
-
-                        shippingMethods.forEach(element => {
-
-                            this.apiClient.get('/shipping-method/' + element.id + '/prices').then(price => {
-
-                                if (price === undefined) {
-                                    return;
-                                }
-
-                                const shippingData = {
-                                    "id": element.id,
-                                    "active": true,
-                                    "availabilityRuleId": rule.id,
-                                    "prices": [
-                                        {
-                                            "id": price.id,
-                                            "currencyPrice": [
-                                                {
-                                                    "currencyId": price.attributes.currencyPrice[0].currencyId,
-                                                    "net": 4.19,
-                                                    "gross": 4.99,
-                                                    "linked": false
-                                                }
-                                            ]
-                                        }
-                                    ],
-                                    "translations": {
-                                        "de-DE": {
-                                            "trackingUrl": "https://www.carrier.com/de/tracking/%s"
-                                        },
-                                        "en-GB": {
-                                            "trackingUrl": "https://www.carrier.com/en/tracking/%s"
-                                        }
-                                    }
-                                };
-
-                                this.apiClient.patch('/shipping-method/' + element.id, shippingData);
-                            });
-                        });
-                    });
-                }
-            });
-        });
     }
 
     /**
@@ -379,23 +147,6 @@ export default class ShopConfigurationAction {
         return this.apiClient.delete('/_action/cache').catch((err) => {
             console.log('Cache could not be cleared')
         });
-    }
-
-    /**
-     *
-     * @param entityName
-     * @param alias
-     * @private
-     */
-    _cypressInterceptBulkUpdate(entityName, alias) {
-        cy.intercept(
-            {
-                url: '/api/_action/sync',
-                headers: {
-                    'x-cypress-entity': entityName,
-                },
-            }
-        ).as(alias);
     }
 
 }

@@ -9,7 +9,7 @@ const repoRefundManager = new RefundManagerRepository();
 // we have to force it
 // because due to scrolling it might not
 // always be visible
-const forceOption = {force: true,timeout:10000};
+const forceOption = {force: true, timeout: 10000};
 
 
 export default class RefundManagerAction {
@@ -33,7 +33,7 @@ export default class RefundManagerAction {
 
         // here are automatic reloads and things as it seems
         // I really want to test the real UX, so we just wait like a human
-        cy.wait(4000);
+        cy.wait(5000);
     }
 
     /**
@@ -49,7 +49,7 @@ export default class RefundManagerAction {
 
         // here are automatic reloads and things as it seems
         // I really want to test the real UX, so we just wait like a human
-        cy.wait(4000);
+        cy.wait(5000);
     }
 
     /**
@@ -61,7 +61,7 @@ export default class RefundManagerAction {
 
         // here are automatic reloads and things as it seems
         // I really want to test the real UX, so we just wait like a human
-        cy.wait(4000);
+        cy.wait(5000);
     }
 
     /**
